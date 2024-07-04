@@ -49,3 +49,28 @@ def save_beam_data_to_csv(beam, filename):
     
     # Save data to file with headers
     np.savetxt(filename, data, header=",".join(headers), fmt='%1.6e', delimiter=',', comments='')
+
+
+def read_shadow_beam_from_csv(filename):
+    """
+    Read beam data from a CSV file and return as a dictionary with headers as keys.
+
+    Parameters:
+    - filename : str
+        The filename (including path) of the CSV file containing the data.
+
+    Returns:
+    - beam : dict
+        Dictionary containing the beam data with headers as keys.
+    """
+    # Read headers from CSV file
+    with open(filename, 'r') as file:
+        headers = file.readline().strip().split(',')
+
+    # Read data from CSV file
+    data = np.loadtxt(filename, delimiter=',', skiprows=1)
+
+    # Create dictionary with headers as keys and corresponding columns as values
+    beam = {header: column for header, column in zip(headers, data.T)}
+
+    return beam
