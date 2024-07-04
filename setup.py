@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name='barc4sr',
+    name='barc4xoc',
     version='2024.07.04',
     author='Rafael Celestre',
     author_email='rafael.celestre@synchrotron-soleil.fr',
