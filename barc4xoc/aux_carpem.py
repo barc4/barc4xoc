@@ -7,15 +7,93 @@ __author__ = ['Rafael Celestre']
 __contact__ = 'rafael.celestre@synchrotron-soleil.fr'
 __license__ = 'GPL-3.0'
 __copyright__ = 'Synchrotron SOLEIL, Saint Aubin, France'
-__created__ = '07/JUL/2024'
-__changed__ = '07/JUL/2024'
+__created__ = '04/JUL/2024'
+__changed__ = '05/JUL/2024'
 
+
+import glob
+import os
+from typing import dict, list
 
 import numpy as np
 import pandas as pd
 
+#***********************************************************************************
+# IO CARPEM
+#***********************************************************************************
 
-def read_carpem_efficiency(file_path):
+def load_carpem_dataset(directory_path: str | list[str]) -> dict[str, pd.DataFrame]:
+    """
+    Loads and processes CARPEM efficiency files from a directory or a list of file paths.
+
+    This function reads multiple CARPEM efficiency files, processes them using the
+    `read_carpem_efficiency` function, and stores the resulting pandas DataFrames
+    in a dictionary. The dictionary keys are the filenames, and the values are the DataFrames.
+
+    Parameters:
+    directory_path (str or list of str): A directory path containing CARPEM efficiency files
+                                         or a list of specific file paths.
+
+    Returns:
+    dict[str, pd.DataFrame]: A dictionary where keys are filenames and values are pandas DataFrames
+                             containing the processed CARPEM data.
+
+    Raises:
+    ValueError: If the input is neither a string nor a list of strings.
+
+    """
+    
+    if isinstance(directory_path, str):
+        files_list = glob.glob(directory_path)
+        files_list.sort()
+    elif isinstance(directory_path, list):
+        files_list = directory_path
+    else:
+        raise ValueError("Input should be a string or a list of strings.")
+    
+    carpem_dict = {}
+    for file in files_list:
+        try:
+            if os.name == 'nt':
+                dict_key = file.split("\\")[-1]
+            else:
+                dict_key = file.split("/")[-1]
+
+            data = read_carpem_efficiency(file)
+
+            carpem_dict[dict_key] = data
+        except Exception as e:
+            print(f"Error processing {file}: {str(e)}")
+
+    return carpem_dict
+
+
+def read_carpem_efficiency(file_path: str):
+    """
+    Reads a CARPEM efficiency file and processes the data into a pandas DataFrame.
+
+    CARPEM is a tool used for simulating the diffraction efficiency of gratings. 
+    This function extracts specific columns from the CARPEM output file and dynamically 
+    includes additional columns if they exist. The extracted columns are renamed for clarity.
+
+    Parameters:
+    file_path (str): The path to the CARPEM efficiency file.
+
+    Returns:
+    pd.DataFrame: A pandas DataFrame containing the processed data with the following columns:
+        - 'alpha': Column 0 (ANGLE INC.)
+        - 'energy': Column 1 (ENERGIE)
+        - 'wavelength': Column 2 (LONG. Ond. A)
+        - 'beta': Column 9 (Ang.So. 1)
+        - 'h1': Column 11 (efficiency for Ang.So. 1)
+        - 'h2', 'h3', ...: Additional columns with efficiency values for Ang.So. 1, 
+                    starting from column 15 and every 6th column thereafter, if they exist.
+
+    Raises:
+    ValueError: If the header line starting with '#ANGLE INC.' is not found in the file.
+
+    """
+    
     # Define the initial column names mapping
     col_names = ['alpha', 'energy', 'wavelength', 'beta', 'h1']
     col_positions = [0, 1, 2, 9, 10]
