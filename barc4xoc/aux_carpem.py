@@ -8,12 +8,12 @@ __contact__ = 'rafael.celestre@synchrotron-soleil.fr'
 __license__ = 'GPL-3.0'
 __copyright__ = 'Synchrotron SOLEIL, Saint Aubin, France'
 __created__ = '04/JUL/2024'
-__changed__ = '05/JUL/2024'
+__changed__ = '19/JUL/2024'
 
 
 import glob
 import os
-from typing import dict, list
+from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,7 @@ import pandas as pd
 # IO CARPEM
 #***********************************************************************************
 
-def load_carpem_dataset(directory_path: str | list[str]) -> dict[str, pd.DataFrame]:
+def load_carpem_dataset(directory_path: Union[str, List[str]]) -> Dict[str, pd.DataFrame]:
     """
     Loads and processes CARPEM efficiency files from a directory or a list of file paths.
 

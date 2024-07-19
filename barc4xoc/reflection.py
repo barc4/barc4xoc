@@ -8,7 +8,7 @@ __contact__ = 'rafael.celestre@synchrotron-soleil.fr'
 __license__ = 'GPL-3.0'
 __copyright__ = 'Synchrotron SOLEIL, Saint Aubin, France'
 __created__ = '26/JAN/2024'
-__changed__ = '07/JUL/2024'
+__changed__ = '19/JUL/2024'
 
 import warnings
 from copy import copy
@@ -132,7 +132,7 @@ def get_density(material: str, verbose: bool = False) -> float:
         raise Exception("Unknown descriptor: %s" % material)
         
 
-def reflectivity_curve(material: str, density: float, theta: float, ei: float, ef: float, ne: int,
+def reflectivity_curve(material: str, density: float, theta: float, ei: float = None, ef: float = None, ne: int = None,
                        e_axis: Optional[np.ndarray] = None) -> dict:
     """ 
     Calculate the reflectivity for a given material and conditions.
@@ -183,7 +183,6 @@ def reflectivity_curve(material: str, density: float, theta: float, ei: float, e
                 FILE_NAME    = "%s.dat"%material,
                 material_constants_library = xraylib,
             )
-        
         energy_axis = out_dict["data"][0,:]
         reflectivity = out_dict["data"][-1,:]
     else:
