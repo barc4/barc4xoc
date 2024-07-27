@@ -1,6 +1,5 @@
-
-"""
-This module provides...
+""" 
+This module interfaces CARPEM.
 """
 
 __author__ = ['Rafael Celestre']

@@ -1,6 +1,5 @@
-
-"""
-This module provides...
+""" 
+This module interfaces SHADOW/OASYS.
 """
 
 __author__ = ['Rafael Celestre']
