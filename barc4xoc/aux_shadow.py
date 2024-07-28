@@ -24,7 +24,8 @@ def save_beam_data_to_csv(beam, filename):
         The filename (including path) to save the data.
 
     Returns:
-    None
+    - beam : dict
+        Dictionary containing the beam data with headers as keys.
     """
     # Fixed columns list
     cols = [11, 23, 24, 25, 1, 2, 3, 4, 5, 6]
@@ -35,9 +36,9 @@ def save_beam_data_to_csv(beam, filename):
     # Define column headers
     headers = [
         "energy",
-        "total_intensity",
-        "total_intensity_s-pol",
-        "total_intensity_p-pol",
+        "intensity",
+        "intensity_s-pol",
+        "intensity_p-pol",
         "X",
         "Y",
         "Z",
@@ -48,6 +49,8 @@ def save_beam_data_to_csv(beam, filename):
     
     # Save data to file with headers
     np.savetxt(filename, data, header=",".join(headers), fmt='%1.6e', delimiter=',', comments='')
+
+    return {header: column for header, column in zip(headers, data)}
 
 
 def read_shadow_beam_from_csv(filename):
