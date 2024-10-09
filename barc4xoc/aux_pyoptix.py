@@ -13,10 +13,16 @@ from scipy.constants import c, eV, h
 
 hc = h*c/eV
 
+#***********************************************************************************
+# R/W functions
+#***********************************************************************************
+
 def save_beam_data_to_csv(beam, filename):
     """
     Save beam data to a CSV file with predefined column headers.
-
+    Convention: X/Xp - horizontal direction
+                Y/Yp - vertical direction
+                Z/Zp - longitudinal direction/along optical axis
     Parameters:
     - beam : PyOptiX.get_impacts()
         The Shadow Beam object containing the data to be saved.
@@ -58,7 +64,9 @@ def save_beam_data_to_csv(beam, filename):
 def read_pyoptix_beam_from_csv(filename):
     """
     Read beam data from a CSV file and return as a dictionary with headers as keys.
-
+    Convention: X/Xp - horizontal direction
+                Y/Yp - vertical direction
+                Z/Zp - longitudinal direction/along optical axis
     Parameters:
     - filename : str
         The filename (including path) of the CSV file containing the data.
