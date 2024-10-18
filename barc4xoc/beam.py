@@ -1,5 +1,3 @@
-
-
 """ 
 Ray tracing auxiliary functions
 """
@@ -21,7 +19,7 @@ def read_beam_from_csv(filename):
     Convention: X/Xp - horizontal direction
                 Y/Yp - vertical direction
                 Z/Zp - longitudinal direction/along optical axis
-                
+
     Parameters:
     - filename : str
         The filename (including path) of the CSV file containing the data.

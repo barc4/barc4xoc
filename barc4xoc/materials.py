@@ -271,7 +271,7 @@ def ml_reflectivity_curve(material_S: str, density_S: float,
                           bilayer_pairs: int, bilayer_thickness: float,
                           bilayer_gamma: float,
                           e_axis: Optional[np.ndarray] = None,
-                          code: str = 'xoppy') -> dict:
+                          code: str = 'xoppy', **kwargs) -> dict:
     """
     Calculate the reflectivity for a multi-layer stack.
 
@@ -291,6 +291,10 @@ def ml_reflectivity_curve(material_S: str, density_S: float,
         bilayer_gamma (float): Ratio of thickness between even and odd layers.
         e_axis (Optional[np.ndarray], optional): Array representing the energy axis for point-wise calculation. Defaults to None.
         code (str, optional): Code identifier. Defaults to 'xoppy'.
+        **kwargs: Additional parameters for reflectivity calculation.
+            - roughness_S (float, optional): Roughness of the substrate. Defaults to 0.
+            - roughness_E (float, optional): Roughness of even layers. Defaults to 0.
+            - roughness_O (float, optional): Roughness of odd layers. Defaults to 0.
 
     Returns:
         dict: A dictionary containing:
@@ -299,6 +303,10 @@ def ml_reflectivity_curve(material_S: str, density_S: float,
             - "theta" (float): The angle of incidence in degrees.
             - "material" (str): Description of the material stack.
     """
+
+    roughness_S = kwargs.get("roughness_S", 0)
+    roughness_E = kwargs.get("roughness_E", 0)
+    roughness_O = kwargs.get("roughness_O", 0)
 
     if code == 'darpanx':
         warnings.warn("DarpanX is not yet interfaced. Defaulting to XOPPY calculation.", UserWarning)
@@ -314,9 +322,9 @@ def ml_reflectivity_curve(material_S: str, density_S: float,
 
     # Initialize the multi-layer stack
     out = MLayer.initialize_from_bilayer_stack(
-        material_S=material_S, density_S=density_S, roughness_S=0.0,
-        material_E=material_E, density_E=density_E, roughness_E=0.0,
-        material_O=material_O, density_O=density_O, roughness_O=0.0,
+        material_S=material_S, density_S=density_S, roughness_S=roughness_S,
+        material_E=material_E, density_E=density_E, roughness_E=roughness_E,
+        material_O=material_O, density_O=density_O, roughness_O=roughness_O,
         bilayer_pairs=bilayer_pairs,
         bilayer_thickness=bilayer_thickness,
         bilayer_gamma=bilayer_gamma,
@@ -328,19 +336,25 @@ def ml_reflectivity_curve(material_S: str, density_S: float,
                                              energyN=ne, energy1=ei, energy2=ef,
                                              thetaN=1, theta1=theta, theta2=theta)
         rs = rs ** 2  # Square rs for intensity
+        rp = rp ** 2
+
     else:
         energy_axis = np.array([])
         rs = np.array([])
         for E in e_axis:
-            _, _, out_energy_axis, _ = out.scan(h5file="",
+            rs_single, rp_single, out_energy_axis, t_single = out.scan(h5file="",
                                                 energyN=1, energy1=E, energy2=E,
                                                 thetaN=1, theta1=theta, theta2=theta)
-            rs_single = _ ** 2  # Square rs for intensity
+            rs_single = rs_single ** 2  # Square rs for intensity
+            rp_single = rp_single ** 2  
+
             energy_axis = np.append(energy_axis, out_energy_axis)
             rs = np.append(rs, rs_single)
 
     return {
-        "reflectivity": rs,
+        "reflectivity": np.sqrt(rs**2 + rp**2),
+        "rs": rs,
+        "rp": rp,
         "energy": energy_axis,
         "theta": theta,
         "material": f"Substrate: {material_S}, Even Layer: {material_E}, Odd Layer: {material_O}"

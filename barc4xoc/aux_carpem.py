@@ -130,7 +130,7 @@ def read_carpem_efficiency(file_path: str):
     # Read the data into a pandas DataFrame
     data = pd.read_csv(
         file_path,
-        delim_whitespace=True,
+        sep='\s+',
         comment='#',
         skiprows=header_line + 1,
         usecols=col_positions,
