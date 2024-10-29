@@ -352,7 +352,7 @@ def ml_reflectivity_curve(material_S: str, density_S: float,
             rs = np.append(rs, rs_single)
 
     return {
-        "reflectivity": np.sqrt(rs**2 + rp**2),
+        "reflectivity": (rs + rp)/2,
         "rs": rs,
         "rp": rp,
         "energy": energy_axis,
@@ -453,7 +453,7 @@ def combine_mirrors(candidates: Tuple, mirrors: int, **kwargs) -> Tuple:
             - ne (int, optional): The number of energy steps.
             - e_axis (Optional[np.ndarray], optional): An array representing the energy axis 
               for point-wise calculation. Defaults to None.
-            - theta (float, optional): The angle of incidence in milliradians (mrad).
+            - theta (float, optional): The angle of incidence in degrees.
 
     Returns:
         Tuple: A tuple containing:
@@ -477,7 +477,7 @@ def combine_mirrors(candidates: Tuple, mirrors: int, **kwargs) -> Tuple:
                 raise ValueError("Please provide initial and final energies (ei and ef)\
                                  as well as number of energy points (ne) OR the energy\
                                  axis (e_axis) ALL in eV. Check if you provided the glancing\
-                                 angle theta in mrad as well.")
+                                 angle theta in degress as well.")
             else:
                 for dens, element in zip(elements, density):
                     candidates.append(reflectivity_curve(element, dens, theta, ei, ef, ne))

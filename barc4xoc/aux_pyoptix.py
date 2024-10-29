@@ -17,7 +17,7 @@ hc = h*c/eV
 # R/W functions
 #***********************************************************************************
 
-def save_beam_data_to_csv(beam, filename):
+def save_beam_to_csv(beam, filename):
     """
     Save beam data to a CSV file with predefined column headers.
     Convention: X/Xp - horizontal direction
@@ -61,7 +61,7 @@ def save_beam_data_to_csv(beam, filename):
     return {header: column for header, column in zip(headers, data)}
 
 
-def read_pyoptix_beam_from_csv(filename):
+def read_beam_from_csv(filename):
     """
     Read beam data from a CSV file and return as a dictionary with headers as keys.
     Convention: X/Xp - horizontal direction
