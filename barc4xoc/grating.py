@@ -8,11 +8,14 @@ __contact__ = 'rafael.celestre@synchrotron-soleil.fr'
 __license__ = 'GPL-3.0'
 __copyright__ = 'Synchrotron SOLEIL, Saint Aubin, France'
 __created__ = '04/JUL/2024'
-__changed__ = '19/JUL/2024'
+__changed__ = '06/NOV/2024'
 
+
+from typing import Dict
 
 import numpy as np
 from scipy.constants import c, degree, eV, h
+from scipy.optimize import curve_fit
 
 
 def align_grating(wavelength: float, line_density: float, order: int = 1,
@@ -143,3 +146,77 @@ def align_grating(wavelength: float, line_density: float, order: int = 1,
         "omega_deg": np.degrees((alpha - beta) / 2),
         "cff": np.sin(beta) / np.sin(alpha)
     }
+
+
+def fit_energy_resolution(resolution_dict: Dict, mthd: int = 0) -> Dict:
+    """
+    Fits energy resolution data in `resolution_dict` to either an exponential decay model 
+    or an inverse power law decay model based on the selected `mthd` parameter.
+
+    Parameters
+    ----------
+    resolution_dict : Dict[str, np.ndarray]
+        Dictionary containing energy data (`'energy'` key) and resolution values to be fit. 
+        Resolution data must not include keys containing `'fit'`.
+    mthd : int, optional
+        Fit method: `0` applies both exponential decay (monolog) and inverse power law decay (loglog),
+        `1` applies only exponential decay, and `2` applies only inverse power law decay.
+
+    Returns
+    -------
+    Dict[str, np.ndarray]
+        Updated dictionary with fitted values added for the specified model(s).
+
+    Raises
+    ------
+    ValueError
+        If `mthd` is not one of {0, 1, 2}.
+    """
+    
+    def exponential_decay(x: np.ndarray, A: float, B: float, C: float) -> np.ndarray:
+        """Negative exponential decay model."""
+        return A * np.exp(-B * x) + C
+
+    def power_decay(x: np.ndarray, A: float, B: float, C: float) -> np.ndarray:
+        """Inverse power law decay model."""
+        return A * x ** (-B) + C
+
+    if mthd not in {0, 1, 2}:
+        raise ValueError("Invalid method. `mthd` must be one of {0, 1, 2}.")
+
+    if mthd in [0, 1]:
+        print('Expontential decay (monolog)')
+        x = resolution_dict['energy']
+        for key in resolution_dict.keys():
+            if key != 'energy' and 'fit' not in key:
+                y = np.log(resolution_dict[key])
+                p = np.polynomial.Polynomial.fit(x, y, 1)
+                coefficients = p.convert().coef
+                fitted_signal = np.exp(coefficients[0])*np.exp(coefficients[1]*x)
+                # popt, pcov = curve_fit(exponential_decay, 
+                #                        resolution_dict['energy'], 
+                #                        resolution_dict[key], 
+                #                        p0=(np.exp(coefficients[0]), -coefficients[1], 0))
+                # fitted_signal = exponential_decay(resolution_dict['energy'], *popt)
+                resolution_dict[f'{key}_fit_monolog'] = fitted_signal
+    
+    if mthd in [0, 2]:
+        print('Inverse power law decay (loglog)')
+        x = np.log(resolution_dict['energy'])
+        for key in resolution_dict.keys():
+            if key != 'energy' and 'fit' not in key:
+                y = np.log(resolution_dict[key])
+                p = np.polynomial.Polynomial.fit(x, y, 1)
+                coefficients = p.convert().coef
+                fitted_signal = np.exp(coefficients[0])*(resolution_dict['energy']**(coefficients[1]))
+                # popt, pcov = curve_fit(power_decay, 
+                #                        resolution_dict['energy'], 
+                #                        resolution_dict[key], 
+                #                        p0=(np.exp(coefficients[0]), -coefficients[1], 0))
+                # fitted_signal = power_decay(resolution_dict['energy'], *popt)
+                resolution_dict[f'{key}_fit_loglog'] = fitted_signal
+
+    return resolution_dict
+
+
+
