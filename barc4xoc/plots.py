@@ -20,7 +20,8 @@ def plot_beam(
     plot_type: str,
     direction: Optional[str] = None,
     prange: Optional[List[Optional[float]]] = None,
-    file_name: Optional[str] = None
+    file_name: Optional[str] = None,
+    **kwargs
 ) -> None:
     """
     Plot different aspects of the photon beam: phase space, beam size, or beam divergence.
@@ -45,6 +46,8 @@ def plot_beam(
     Returns:
         None
     """
+    aspect_ratio = kwargs.get('aspect_ratio', True)
+
     if prange is None:
         prange = [None, None, None, None]
     
@@ -92,7 +95,7 @@ def plot_beam(
     fig.aesthetics(
         dpi=600, 
         LaTex=True, 
-        AspectRatio=(plot_type != "phase_space"), 
+        AspectRatio=aspect_ratio, 
         FontsSize=None, 
         grid=True, 
         nbins=None
@@ -150,17 +153,23 @@ def plot_tuning_curve(tc: dict,
         nHarmMax = tc["flux"].shape[1]-1
 
     fig = PlotManager()
-    fig.additional_info(title, "energy [eV]", unit, sort_ax=False, sort_ax_lim=False).aesthetics(LaTex=True, grid=True)
+    fig.additional_info(title, "energy [eV]", unit, 
+                        xmin=prange[0], xmax=prange[1], 
+                        ymin=prange[2], ymax=prange[3], 
+                        sort_ax=False, sort_ax_lim=False).aesthetics(LaTex=True, grid=True)
     k = 0
     for nharm in range(nHarmMax):
-        if even_harmonics or (nharm + 1) % 2 != 0:
+        if (nharm + 1) % 2 == 0 and even_harmonics or (nharm + 1) % 2 != 0:
             flux = np.copy(tc["flux"][:, nharm+1])
             flux[flux==0] = np.nan
             fig.image, fig.x = flux, tc["energy"]
-            fig.info_1d_plot(k, None, 1, "-").plot_1d(enable=False, hold=(nharm+1 != 1))
+            if (nharm + 1) % 2 == 0:
+                fig.info_1d_plot(k, f'n={(nharm + 1)}', 1, ":").plot_1d(enable=False, hold=(nharm+1 != 1))
+            else:
+                fig.info_1d_plot(k, f'n={(nharm + 1)}', 1, "-").plot_1d(enable=False, hold=(nharm+1 != 1))
             if not np.all(np.isnan(flux)):
                 k += 1
     flux = np.copy(tc["flux"][:, 0])
     flux[flux==0] = np.nan
     fig.image = flux
-    fig.info_1d_plot(-1, None, 1, ":").plot_1d(enable=True, hold=True, file_name=file_name)
+    fig.info_1d_plot(-1, 'envelope', 1, "--").plot_1d(enable=True, hold=True, file_name=file_name)

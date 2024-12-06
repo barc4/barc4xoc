@@ -1,6 +1,6 @@
 
 """
-This module provides...
+This module provides auxiliary grating funcitons
 """
 
 __author__ = ['Rafael Celestre']
@@ -15,7 +15,13 @@ from typing import Dict
 
 import numpy as np
 from scipy.constants import c, degree, eV, h
-from scipy.optimize import curve_fit
+
+from barc4xoc.misc import (
+    fft_filtering,
+    fit_exponential_decay,
+    fit_power_decay,
+    moving_average,
+)
 
 
 def align_grating(wavelength: float, line_density: float, order: int = 1,
@@ -148,75 +154,105 @@ def align_grating(wavelength: float, line_density: float, order: int = 1,
     }
 
 
-def fit_energy_resolution(resolution_dict: Dict, mthd: int = 0) -> Dict:
+def treat_energy_resolution(resolution_dict: Dict[str, np.ndarray], mthd: int = 0, **kwargs) -> Dict:
     """
-    Fits energy resolution data in `resolution_dict` to either an exponential decay model 
-    or an inverse power law decay model based on the selected `mthd` parameter.
+    Processes energy resolution data in `resolution_dict` by fitting it to various decay models
+    and applying optional smoothing and FFT-based filtering. The fit model(s) used are determined
+    by the `mthd` parameter.
 
     Parameters
     ----------
-    resolution_dict : Dict[str, np.ndarray]
-        Dictionary containing energy data (`'energy'` key) and resolution values to be fit. 
-        Resolution data must not include keys containing `'fit'`.
+    resolution_dict : Dict
+        Dictionary containing energy data (`'energy'` key) and resolution values to be processed.
+        Resolution data entries should not include keys with `'fit'`.
     mthd : int, optional
-        Fit method: `0` applies both exponential decay (monolog) and inverse power law decay (loglog),
-        `1` applies only exponential decay, and `2` applies only inverse power law decay.
+        Specifies the processing method:
+        - `0` applies all models: exponential decay (monolog), inverse power law decay (loglog),
+          and FFT filtering.
+        - `1` applies only exponential decay.
+        - `2` applies only inverse power law decay.
+        - `3` applies only FFT filtering.
+    **kwargs : 
+        Additional options for processing and filtering:
+        - `treat` : bool, optional
+            Whether to apply pre-filtering before fitting (default is True).
+        - `avg` : int, optional
+            Specifies the method for moving average filtering if `treat` is enabled. Defaults to 0.
+        - `deltaE` : float, optional
+            Step size for the moving average filter. If None, defaults to an estimate of `10` pixels.
+        - `fft_deltaE` : float, optional
+            Resolution cutoff for FFT filtering; defaults to 20% of the energy range if not provided.
+        - `fft_sigma` : float, optional
+            Standard deviation for the Gaussian roll-off in FFT filtering; defaults to `0` for a hard cutoff.
 
     Returns
     -------
     Dict[str, np.ndarray]
-        Updated dictionary with fitted values added for the specified model(s).
+        Updated dictionary with fitted or filtered values added for the specified model(s). Each added key
+        has the format `<original_key>_fit_<method>` where `<method>` represents the fitting/filtering approach used.
 
     Raises
     ------
     ValueError
-        If `mthd` is not one of {0, 1, 2}.
+        If `mthd` is not one of {0, 1, 2, 3}.
     """
     
-    def exponential_decay(x: np.ndarray, A: float, B: float, C: float) -> np.ndarray:
-        """Negative exponential decay model."""
-        return A * np.exp(-B * x) + C
-
-    def power_decay(x: np.ndarray, A: float, B: float, C: float) -> np.ndarray:
-        """Inverse power law decay model."""
-        return A * x ** (-B) + C
-
-    if mthd not in {0, 1, 2}:
-        raise ValueError("Invalid method. `mthd` must be one of {0, 1, 2}.")
-
-    if mthd in [0, 1]:
-        print('Expontential decay (monolog)')
-        x = resolution_dict['energy']
-        for key in resolution_dict.keys():
-            if key != 'energy' and 'fit' not in key:
-                y = np.log(resolution_dict[key])
-                p = np.polynomial.Polynomial.fit(x, y, 1)
-                coefficients = p.convert().coef
-                fitted_signal = np.exp(coefficients[0])*np.exp(coefficients[1]*x)
-                # popt, pcov = curve_fit(exponential_decay, 
-                #                        resolution_dict['energy'], 
-                #                        resolution_dict[key], 
-                #                        p0=(np.exp(coefficients[0]), -coefficients[1], 0))
-                # fitted_signal = exponential_decay(resolution_dict['energy'], *popt)
-                resolution_dict[f'{key}_fit_monolog'] = fitted_signal
+    if mthd not in {0, 1, 2, 3, 4}:
+        raise ValueError("Invalid method. `mthd` must be one of {0, 1, 2, 3, 4}.")
     
-    if mthd in [0, 2]:
-        print('Inverse power law decay (loglog)')
-        x = np.log(resolution_dict['energy'])
-        for key in resolution_dict.keys():
-            if key != 'energy' and 'fit' not in key:
-                y = np.log(resolution_dict[key])
-                p = np.polynomial.Polynomial.fit(x, y, 1)
-                coefficients = p.convert().coef
-                fitted_signal = np.exp(coefficients[0])*(resolution_dict['energy']**(coefficients[1]))
-                # popt, pcov = curve_fit(power_decay, 
-                #                        resolution_dict['energy'], 
-                #                        resolution_dict[key], 
-                #                        p0=(np.exp(coefficients[0]), -coefficients[1], 0))
-                # fitted_signal = power_decay(resolution_dict['energy'], *popt)
-                resolution_dict[f'{key}_fit_loglog'] = fitted_signal
+    treat = kwargs.get('treat', True)
+    fit = kwargs.get('fit', True)
+    avg = kwargs.get('avg', 0)
 
+    fitted_results = {}
+    x = resolution_dict['energy']
+    
+    for key in resolution_dict:
+        if key != 'energy' and 'fit' not in key:
+            y = resolution_dict[key]
+            
+            deltaE = kwargs.get('deltaE', None)
+            if deltaE is None:
+                deltaEpx = 10
+            else:
+                deltaEpx = int(np.ceil(deltaE/(x[1]-x[0])))
+                if deltaEpx < 10:
+                    deltaEpx = 10
+
+            treated_signal = moving_average(y, deltaEpx, avg)
+            fitted_results[f'{key}_fit_moving_avg'] = treated_signal
+
+            if fit is True:
+                if mthd in [0, 1]:
+
+                    # print('Expontential decay (monolog)')
+                    if treat:
+                        fitted_signal = fit_exponential_decay(x, treated_signal)
+                    else:
+                        fitted_signal = fit_exponential_decay(x, y)
+                    fitted_results[f'{key}_fit_monolog'] = fitted_signal
+
+                if mthd in [0, 2]:
+                    # print('Inverse power law decay (loglog)')
+                    if treat:
+                        fitted_signal = fit_power_decay(x, treated_signal)
+                    else:
+                        fitted_signal = fit_power_decay(x, y)
+                    fitted_results[f'{key}_fit_loglog'] = fitted_signal
+
+                if mthd in [0, 3]:
+                    deltaE = kwargs.get('fft_deltaE', None)
+                    sigma = kwargs.get('fft_sigma', 0)
+
+                    if deltaE is None:
+                        deltaE = 0.20*(x[-1]-x[0])
+
+                    if treat:
+                        fitted_signal = fft_filtering(x, treated_signal, deltaE, sigma)
+                    else:
+                        fitted_signal = fft_filtering(x, y, deltaE, sigma)
+                    fitted_results[f'{key}_fft_filt'] = fitted_signal
+
+    resolution_dict.update(fitted_results)
     return resolution_dict
-
-
 

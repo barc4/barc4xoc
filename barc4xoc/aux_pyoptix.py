@@ -57,8 +57,9 @@ def save_beam_to_csv(beam, filename):
     ]
     
     # Save data to file with headers
-    np.savetxt(filename, data, header=",".join(headers), fmt='%1.6e', delimiter=',', comments='')
-    return {header: column for header, column in zip(headers, data)}
+    if filename is not None:
+        np.savetxt(filename, data, header=",".join(headers), fmt='%1.6e', delimiter=',', comments='')
+    return {header: column for header, column in zip(headers, data.T)}
 
 
 def read_beam_from_csv(filename):
