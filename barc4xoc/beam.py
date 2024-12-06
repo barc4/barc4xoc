@@ -11,9 +11,10 @@ __changed__ = '05/NOV/2024'
 from typing import Dict, List
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
 from scipy.optimize import minimize
 from scipy.stats import kurtosis, skew
+
+from barc4xoc.misc import calculate_fwhm
 
 
 def read_beam_from_csv(filename):
@@ -169,37 +170,162 @@ def get_beam_stats(beam: dict, direction: str = "both", verbose: bool = False) -
 
     return stats
 
+def initialise_beam_stats_dict(npts, group_name):
 
-def calculate_fwhm(profile: np.ndarray, bins: int = None, smoothing: float = 0) -> float:
+    stats = {
+        f'{group_name}':
+        {'X': 
+         {'focus_distance': np.zeros(npts),
+          'sigma': {'mean': np.zeros(npts),
+                    'std': np.zeros(npts),
+                    'fwhm': np.zeros(npts),
+                    'skew': np.zeros(npts),
+                    'kurtosis':np.zeros(npts)
+                    },
+          'sigma_p': {'mean': np.zeros(npts),
+                      'std': np.zeros(npts),
+                      'fwhm': np.zeros(npts),
+                      'skew': np.zeros(npts),
+                      'kurtosis': np.zeros(npts)
+                     }
+         },
+        'Y': {'focus_distance': np.zeros(npts),
+              'sigma': {'mean': np.zeros(npts),
+                        'std': np.zeros(npts),
+                        'fwhm': np.zeros(npts),
+                        'skew': np.zeros(npts),
+                        'kurtosis': np.zeros(npts)
+                        },
+              'sigma_p': {'mean': np.zeros(npts),
+                          'std': np.zeros(npts),
+                          'fwhm': np.zeros(npts),
+                          'skew': np.zeros(npts),
+                          'kurtosis': np.zeros(npts)
+                          }
+             }
+        }
+    }
+
+    return stats
+
+def save_beam_stats_to_csv(stats: Dict, scan: np.ndarray, filename: str, **kwargs) -> Dict:
     """
-    Calculate the Full Width at Half Maximum (FWHM) of a 1D beam profile using UnivariateSpline.
+    Load and structure data from a CSV file into a nested dictionary format.
 
     Args:
-        profile (np.ndarray): Array representing the positions (e.g., X or Y) of the beam.
-        bins (int, optional): Number of bins for the histogram. Defaults to None.
-        smoothing (float, optional): Smoothing factor for UnivariateSpline. 
-                                     A value of 0 means no smoothing, which will 
-                                     interpolate exactly through the points. Defaults to 0.
-    
-    Returns:
-        float: The FWHM of the beam profile in the same units as the profile input.
+        stats (Dict): A dictionary containing the statistics for a ray tracing beam.
+        scan (np.ndarray): Array of scan values to include as a column.
+        filename (str): Path to the CSV file containing the structured statistics data.
     """
-    if bins is None:
-        bins = int(np.sqrt(len(profile)))
 
-    counts, edges = np.histogram(profile, bins=bins, density=True)
-    centers = (edges[:-1] + edges[1:]) / 2
-    max_value = max(counts)
-    spline = UnivariateSpline(centers, counts - max_value / 2, s=smoothing)
-    roots = spline.roots()
-    peak_index = np.argmax(counts)
-    peak_position = centers[peak_index]
-    left_roots = roots[roots < peak_position]
-    right_roots = roots[roots > peak_position]
+    headers = [
+        'config', 'scan',
+        'X_f', 'X_mean', 'X_std', 'X_fwhm', 'X_skew', 'X_kurtosis', 
+        'Xp_mean', 'Xp_std', 'Xp_fwhm', 'Xp_skew', 'Xp_kurtosis', 
+        'Y_f', 'Y_mean', 'Y_std', 'Y_fwhm', 'Y_skew', 'Y_kurtosis', 
+        'Yp_mean', 'Yp_std', 'Yp_fwhm', 'Yp_skew', 'Yp_kurtosis'
+    ]
     
-    if len(left_roots) > 0 and len(right_roots) > 0:
-        fwhm = right_roots[0] - left_roots[-1]
-    else:
-        fwhm = 0  
 
-    return fwhm
+    data_rows = []
+    for config, coord_data in stats.items():
+        focus_distance_X = coord_data['X']['focus_distance']
+        sigma_X = coord_data['X']['sigma']
+        sigma_p_X = coord_data['X']['sigma_p']
+        
+        focus_distance_Y = coord_data['Y']['focus_distance']
+        sigma_Y = coord_data['Y']['sigma']
+        sigma_p_Y = coord_data['Y']['sigma_p']
+        
+        for i in range(len(focus_distance_X)):
+            row = [
+                config, scan[i],
+                focus_distance_X[i], sigma_X['mean'][i], sigma_X['std'][i], sigma_X['fwhm'][i], sigma_X['skew'][i], sigma_X['kurtosis'][i],
+                sigma_p_X['mean'][i], sigma_p_X['std'][i], sigma_p_X['fwhm'][i], sigma_p_X['skew'][i], sigma_p_X['kurtosis'][i],
+                focus_distance_Y[i], sigma_Y['mean'][i], sigma_Y['std'][i], sigma_Y['fwhm'][i], sigma_Y['skew'][i], sigma_Y['kurtosis'][i],
+                sigma_p_Y['mean'][i], sigma_p_Y['std'][i], sigma_p_Y['fwhm'][i], sigma_p_Y['skew'][i], sigma_p_Y['kurtosis'][i]
+            ]
+            data_rows.append(row)
+    
+    data = np.array(data_rows, dtype=object)
+    
+    np.savetxt(
+        filename, 
+        data, 
+        header=",".join(headers), 
+        fmt='%s',
+        delimiter=',', 
+        comments=''
+    )
+    
+    print(f"Data saved to {filename}")
+
+
+def load_stats_from_csv(filename: str) -> Dict:
+    """
+    Load and structure data from a CSV file into a nested dictionary format with energy values.
+
+    Args:
+        filename (str): Path to the CSV file containing the structured statistics data.
+
+    Returns:
+        Dict: Dictionary containing the structured statistics data with energy values.
+    """
+    stats = {}
+
+    data = np.genfromtxt(filename, delimiter=',', dtype=None, encoding=None, names=True)
+
+    configs = np.unique(data['config'])
+
+    for config in configs:
+        stats[config] = {
+            'scan': [],  # Store energy for each config
+            'X': {
+                'focus_distance': [],
+                'sigma': {'mean': [], 'std': [], 'fwhm': [], 'skew': [], 'kurtosis': []},
+                'sigma_p': {'mean': [], 'std': [], 'fwhm': [], 'skew': [], 'kurtosis': []}
+            },
+            'Y': {
+                'focus_distance': [],
+                'sigma': {'mean': [], 'std': [], 'fwhm': [], 'skew': [], 'kurtosis': []},
+                'sigma_p': {'mean': [], 'std': [], 'fwhm': [], 'skew': [], 'kurtosis': []}
+            }
+        }
+
+        config_data = data[data['config'] == config]
+
+        for row in config_data:
+            stats[config]['scan'].append(float(row['scan']))
+            stats[config]['X']['focus_distance'].append(float(row['X_f']))
+            stats[config]['X']['sigma']['mean'].append(float(row['X_mean']))
+            stats[config]['X']['sigma']['std'].append(float(row['X_std']))
+            stats[config]['X']['sigma']['fwhm'].append(float(row['X_fwhm']))
+            stats[config]['X']['sigma']['skew'].append(float(row['X_skew']))
+            stats[config]['X']['sigma']['kurtosis'].append(float(row['X_kurtosis']))
+            stats[config]['X']['sigma_p']['mean'].append(float(row['Xp_mean']))
+            stats[config]['X']['sigma_p']['std'].append(float(row['Xp_std']))
+            stats[config]['X']['sigma_p']['fwhm'].append(float(row['Xp_fwhm']))
+            stats[config]['X']['sigma_p']['skew'].append(float(row['Xp_skew']))
+            stats[config]['X']['sigma_p']['kurtosis'].append(float(row['Xp_kurtosis']))
+            
+            stats[config]['Y']['focus_distance'].append(float(row['Y_f']))
+            stats[config]['Y']['sigma']['mean'].append(float(row['Y_mean']))
+            stats[config]['Y']['sigma']['std'].append(float(row['Y_std']))
+            stats[config]['Y']['sigma']['fwhm'].append(float(row['Y_fwhm']))
+            stats[config]['Y']['sigma']['skew'].append(float(row['Y_skew']))
+            stats[config]['Y']['sigma']['kurtosis'].append(float(row['Y_kurtosis']))
+            stats[config]['Y']['sigma_p']['mean'].append(float(row['Yp_mean']))
+            stats[config]['Y']['sigma_p']['std'].append(float(row['Yp_std']))
+            stats[config]['Y']['sigma_p']['fwhm'].append(float(row['Yp_fwhm']))
+            stats[config]['Y']['sigma_p']['skew'].append(float(row['Yp_skew']))
+            stats[config]['Y']['sigma_p']['kurtosis'].append(float(row['Yp_kurtosis']))
+
+        for axis in ['X', 'Y']:
+            stats[config][axis]['focus_distance'] = np.array(stats[config][axis]['focus_distance'])
+            for stat in ['mean', 'std', 'fwhm', 'skew', 'kurtosis']:
+                stats[config][axis]['sigma'][stat] = np.array(stats[config][axis]['sigma'][stat])
+                stats[config][axis]['sigma_p'][stat] = np.array(stats[config][axis]['sigma_p'][stat])
+
+        stats[config]['scan'] = np.array(stats[config]['scan'])
+
+    return stats
